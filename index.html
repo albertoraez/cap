@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="es" data-tema="claro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Test CAP</title>
+<style>
+:root{--bg:#f4f6fa;--card:#fff;--border:#e5e7eb;--text:#1f2937;--muted:#6b7280;--acc:#2563eb;--acc-h:#1d4ed8;
+--btn:#eef2ff;--btn-h:#dbe4ff;--ok-bg:#bbf7d0;--ok-fg:#166534;--ko-bg:#fecaca;--ko-fg:#991b1b}
+html[data-tema=oscuro]{--bg:#111827;--card:#1f2937;--border:#374151;--text:#f3f4f6;--muted:#9ca3af;--acc:#3b82f6;
+--acc-h:#2563eb;--btn:#273244;--btn-h:#334155;--ok-bg:#14532d;--ok-fg:#bbf7d0;--ko-bg:#7f1d1d;--ko-fg:#fecaca}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{max-width:760px;margin:0 auto;padding:60px 16px 40px}
+#tema{position:fixed;top:10px;right:12px;z-index:5;border:0;border-radius:8px;padding:8px 12px;font-weight:700;
+background:var(--btn);color:var(--text);cursor:pointer}
+h1{font-size:2.2rem;text-align:center;margin:24px 0 4px}
+h2{margin:0 0 6px}
+.sub,.muted{color:var(--muted);font-size:.9rem}.sub{text-align:center;margin:0 0 28px}
+.btn{display:block;width:100%;border:0;border-radius:12px;padding:14px 18px;background:var(--btn);color:var(--text);
+font:inherit;cursor:pointer;text-align:center}
+.btn:active,.btn:hover{background:var(--btn-h)}
+.btn.big{font-size:1.15rem;font-weight:700;padding:20px;margin:10px 0}
+.btn.acc{background:var(--acc);color:#fff;font-weight:700}.btn.acc:hover,.btn.acc:active{background:var(--acc-h)}
+.fila{display:flex;gap:8px;align-items:center;justify-content:space-between;margin:10px 0;flex-wrap:wrap}
+.fila .btn{width:auto;flex:0 0 auto;padding:10px 16px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;margin:10px 0;
+font-size:1.15rem;font-weight:700}
+.opt{display:block;width:100%;text-align:left;border:0;border-radius:10px;padding:14px;margin:8px 0;background:var(--btn);
+color:var(--text);font:inherit;cursor:pointer}
+.opt b{display:inline-block;min-width:1.4em;opacity:.7}
+.opt:hover{background:var(--btn-h)}
+.opt.sel{background:var(--acc);color:#fff}.opt.ok{background:var(--ok-bg);color:var(--ok-fg)}
+.opt.ko{background:var(--ko-bg);color:var(--ko-fg)}.opt.mut{color:var(--muted)}
+.res{font-weight:700;font-size:1.1rem;margin:12px 0}.res.ok{color:var(--ok-fg)}.res.ko{color:var(--ko-fg)}
+.tabs{display:flex;gap:6px;margin:12px 0}
+.tabs button{flex:1;border:0;border-radius:10px;padding:10px;background:var(--btn);color:var(--text);font:inherit;
+font-weight:700;cursor:pointer}.tabs button.on{background:var(--acc);color:#fff}
+.tw{overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{padding:8px 10px;text-align:center;white-space:nowrap;border-bottom:1px solid var(--border)}
+th{background:var(--btn);position:sticky;top:0}th:first-child,td:first-child{text-align:left}
+.bar{letter-spacing:-1px;color:var(--acc);text-align:left}
+.resumen{font-size:1.2rem;font-weight:700;margin:6px 0}
+.err{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;margin:10px 0}
+.err .q{font-weight:700;margin-bottom:6px}.err div.o{padding:2px 0}
+.err .ok{color:var(--ok-fg);font-weight:600}.err .ko{color:var(--ko-fg);font-weight:600}.err .mut{color:var(--muted)}
+.reloj{font-weight:700;font-size:1.1rem}.reloj.rojo{color:var(--ko-fg)}
+.aviso{text-align:center;font-size:1.3rem;margin:80px 0 24px}
+.nube{margin-top:26px;text-align:center}.nube .btn{display:inline-block;width:auto;margin-top:8px;padding:8px 14px;font-size:.9rem}
+label{display:block;font-weight:700;margin:6px 0 2px;font-size:.9rem}
+.in{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font:inherit;margin:2px 0 12px}
+.malo{color:var(--ko-fg)}</style>
+</head>
+<body>
+<button id="tema"></button>
+<div id="app"></div>
+<script>
+"use strict";
+const $app = document.getElementById('app');
+const ls = {get: k => { try { return localStorage.getItem(k) } catch (e) { return null } },
+            set: (k, v) => { try { localStorage.setItem(k, v) } catch (e) {} },
+            del: k => { try { localStorage.removeItem(k) } catch (e) {} }};
+const h = (t, a = {}, ...k) => {
+  const e = document.createElement(t);
+  for (const [n, v] of Object.entries(a)) {
+    if (n === 'class') e.className = v;
+    else if (n.startsWith('on')) e.addEventListener(n.slice(2), v);
+    else if (v !== false && v != null) e.setAttribute(n, v);
+  }
+  for (const c of k.flat()) { if (c == null || c === false) continue; e.append(c.nodeType ? c : document.createTextNode(c)); }
+  return e;
+};
+const btn = (t, f, c = '') => h('button', {class: 'btn ' + c, onclick: f}, t);
+// ============ motor local (mismo algoritmo que el programa del PC) ============
+let Q = [], QID = new Map(), P = {}, SUC = new Set();
+const RACHA_DOM = 2, EVITAR = 15, EXAMEN_MIN = 120;
+const REFS = [['Ampliación', [3]], ['Global', [1, 3]], ['Promoción', [3]], ['Modelo A', [1, 3]]];
+const CONTEO = {'3|1.5': [5, 9, 9, 14], '3|1.6': [6, 5, 5, 4], '3|2.3': [3, 5, 5, 2], '3|3.8': [11, 6, 6, 5],
+  '1|1.1': [0, 5, 0, 6], '1|1.2': [0, 9, 0, 12], '1|1.3': [0, 8, 0, 8], '1|1.3 bis': [0, 13, 0, 4], '1|2.1': [0, 17, 0, 11],
+  '1|3.1': [0, 8, 0, 8], '1|3.2': [0, 3, 0, 2], '1|3.3': [0, 0, 0, 5], '1|3.4': [0, 0, 0, 5], '1|3.5': [0, 7, 0, 9], '1|3.6': [0, 5, 0, 5]};
+const TOTAL = {1: 75, 3: 25};
+const temaDe = q => `S${q.s}-${q.o}`;
+const st = q => P[q.id] || [0, 0, 0, 0];           // [intentos, fallos, racha, ultimo(ms)]
+const pub = q => ({id: q.id, seccion: q.s, objetivo: q.o, codigo: q.c, tema: temaDe(q), pregunta: q.q, opciones: q.op});
+function cargarLocal() {
+  try { P = JSON.parse(ls.get('cap_prog') || '{}'); } catch (e) { P = {}; }
+  try { SUC = new Set(JSON.parse(ls.get('cap_suc') || '[]')); } catch (e) { SUC = new Set(); }
+}
+function guardarLocal() { ls.set('cap_prog', JSON.stringify(P)); ls.set('cap_suc', JSON.stringify([...SUC])); }
+function registrar(q, ok) {
+  const [i, f, r] = st(q);
+  P[q.id] = [i + 1, f + (ok ? 0 : 1), ok ? r + 1 : 0, Date.now()];
+  SUC.add(q.id); guardarLocal(); pedirPush();
+}
+const pendientes = () => Q.filter(q => { const [, f, r] = st(q); return f > 0 && r < RACHA_DOM; });
+function tasasPorTema() {
+  const a = {};
+  for (const q of Q) { const t = a[temaDe(q)] || (a[temaDe(q)] = [0, 0]); const s = st(q); t[0] += s[1]; t[1] += s[0]; }
+  const out = {}; for (const k in a) out[k] = (a[k][0] + 1) / (a[k][1] + 2);
+  return out;
+}
+function peso(q, tasas, ahora) {
+  const [i, f, r, u] = st(q);
+  let w = 0.5 + 3.0 * tasas[temaDe(q)];
+  if (i === 0) return w * 1.5;
+  w *= 0.3 + 3.0 * (f + 1) / (i + 2);
+  w *= Math.pow(0.55, r);
+  if (r === 0 && f > 0) w *= 2.0;
+  w *= 1 + Math.min((ahora - u) / 86400000 / 7, 1.0);
+  return Math.max(w, 0.01);
+}
+function elegir(pool, rec) {
+  const tasas = tasasPorTema(), ahora = Date.now();
+  let cand = pool.filter(q => !rec.has(q.id)); if (!cand.length) cand = pool;
+  const w = cand.map(q => peso(q, tasas, ahora));
+  let x = Math.random() * w.reduce((a, b) => a + b, 0);
+  for (let k = 0; k < cand.length; k++) { x -= w[k]; if (x <= 0) return cand[k]; }
+  return cand[cand.length - 1];
+}
+const mezclar = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+function media(k) {
+  const sec = +k.split('|')[0];
+  const idx = REFS.map((r, i) => r[1].includes(sec) ? i : -1).filter(i => i >= 0);
+  return idx.reduce((s, i) => s + CONTEO[k][i], 0) / idx.length;
+}
+function cuotas() {
+  const out = {};
+  for (const sec of [3, 1]) {
+    const ks = Object.keys(CONTEO).filter(k => +k.split('|')[0] === sec), base = {}, pes = {};
+    let falta = TOTAL[sec];
+    for (const k of ks) { base[k] = Math.floor(media(k)); falta -= base[k]; pes[k] = media(k) - base[k]; }
+    while (falta > 0) {
+      const cand = ks.filter(k => pes[k] > 1e-9), tot = cand.reduce((a, k) => a + pes[k], 0);
+      let x = Math.random() * tot, el = cand[cand.length - 1];
+      for (const k of cand) { x -= pes[k]; if (x <= 0) { el = k; break; } }
+      base[el]++; pes[el] = 0; falta--;
+    }
+    Object.assign(out, base);
+  }
+  return out;
+}
+function generarExamen() {
+  const cu = cuotas(), out = [];
+  for (const sec of [3, 1]) {
+    let bloque = [];
+    for (const [k, n] of Object.entries(cu)) {
+      const [s, o] = k.split('|'); if (+s !== sec) continue;
+      bloque = bloque.concat(mezclar(Q.filter(q => q.s === sec && q.o === o)).slice(0, n));
+    }
+    out.push(...mezclar(bloque));
+  }
+  return out;
+}
+function estadisticas() {
+  const tasas = tasasPorTema(), d = {};
+  for (const q of Q) {
+    const x = d[temaDe(q)] || (d[temaDe(q)] = {total: 0, vistas: 0, intentos: 0, fallos: 0, pend: 0}), [i, f, r] = st(q);
+    x.total++; if (i > 0) x.vistas++; x.intentos += i; x.fallos += f; if (f > 0 && r < RACHA_DOM) x.pend++;
+  }
+  const temas = Object.keys(d).sort((a, b) => tasas[b] - tasas[a]).map(t => { const x = d[t];
+    return [t, `${x.vistas}/${x.total}`, x.intentos, x.intentos ? Math.round(100 * (x.intentos - x.fallos) / x.intentos) + '%' : '-', x.pend, '█'.repeat(Math.round(tasas[t] * 10))]; });
+  const intentos = Object.values(d).reduce((a, x) => a + x.intentos, 0), fallos = Object.values(d).reduce((a, x) => a + x.fallos, 0);
+  const tot = TOTAL[1] + TOTAL[3];
+  const dist = Object.keys(CONTEO).sort((a, b) => (media(b) - media(a)) || (a < b ? -1 : 1)).map(k => {
+    const [s, o] = k.split('|'), t = `S${s}-${o}`, m = media(k), fila = temas.find(x => x[0] === t);
+    const cnt = CONTEO[k].map((c, i) => REFS[i][1].includes(+s) ? c : '·');
+    return [t, String(+m.toFixed(2)), (100 * m / tot).toFixed(1) + '%', Math.round(100 * m / TOTAL[s]) + '%',
+      fila ? fila[1].split('/')[1] : '-', fila ? fila[3] : '-', ...cnt];
+  });
+  return {temas, intentos, fallos, dist, refs: REFS.map(r => r[0]), totales: TOTAL};
+}
+const api = async (p, body) => {
+  const u = new URL(p, 'http://x'), q = u.searchParams;
+  if (u.pathname === '/api/menu') return {pendientes: pendientes().length, preguntas: Q.length};
+  if (u.pathname === '/api/siguiente') {
+    const pend = pendientes(), falladas = q.get('modo') === 'falladas';
+    const rec = new Set((q.get('recientes') || '').split(',').filter(x => x).map(Number));
+    const pool = falladas ? pend : Q;
+    if (!pool.length) return {vacio: true};
+    return {pregunta: pub(elegir(pool, rec)), pendientes: pend.length};
+  }
+  if (u.pathname === '/api/stats') return estadisticas();
+  if (u.pathname === '/api/examen/nuevo') return {minutos: EXAMEN_MIN, preguntas: generarExamen().map(pub)};
+  if (u.pathname === '/api/responder') {
+    const qq = QID.get(+body.id), ok = body.letra === qq.ok; registrar(qq, ok); return {ok, correcta: qq.ok};
+  }
+  if (u.pathname === '/api/examen/terminar') {
+    let ac = 0, fa = 0, bl = 0; const por = {}, errores = [];
+    body.ids.forEach((id, i) => {
+      const qq = QID.get(+id); if (!qq) return;
+      const l = body.respuestas[qq.id], t = por[temaDe(qq)] || (por[temaDe(qq)] = [0, 0, 0, 0]);
+      t[0]++;
+      if (!'ABCD'.includes(l || '-')) { bl++; t[3]++; }
+      else { registrar(qq, l === qq.ok); if (l === qq.ok) { ac++; t[1]++; } else { fa++; t[2]++; } }
+      if (l !== qq.ok) errores.push({...pub(qq), correcta: qq.ok, n: i + 1, tuya: 'ABCD'.includes(l || '-') ? l : null});
+    });
+    const temas = Object.entries(por).sort((a, b) => a[1][1] / a[1][0] - b[1][1] / b[1][0])
+      .map(([k, v]) => [k, v[0], v[1], v[2], v[3], Math.round(100 * v[1] / v[0]) + '%']);
+    return {aciertos: ac, fallos: fa, blancos: bl, total: ac + fa + bl, temas, errores};
+  }
+  throw new Error('ruta desconocida');
+};
+
+// ============ sincronizacion con la nube (Supabase) ============
+const cfg = () => { try { return JSON.parse(ls.get('cap_cfg')) || {}; } catch (e) { return {}; } };
+const nubeOk = () => { const c = cfg(); return !!(c.url && c.key && c.clave); };
+let estadoNube = nubeOk() ? 'Conectando…' : 'Sin configurar', syncing = false, otraVez = false, tPush = null, ultimoSync = 0;
+function pintaEstado() { const e = document.getElementById('estadoNube'); if (e) { e.textContent = '☁ ' + estadoNube; e.className = estadoNube.startsWith('Sin sincronizar') ? 'malo' : 'muted'; } }
+async function rpc(fn, cuerpo) {
+  const c = cfg();
+  const r = await fetch(c.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {method: 'POST', headers: {'apikey': c.key, 'Content-Type': 'application/json'}, body: JSON.stringify(cuerpo)});
+  if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()).slice(0, 120));
+  return r.json();
+}
+async function sincronizar() {
+  if (!nubeOk()) { estadoNube = 'Sin configurar'; pintaEstado(); return; }
+  if (syncing) { otraVez = true; return; }
+  syncing = true; let bajadas = 0;
+  try {
+    const remoto = await rpc('cap_pull', {clave: cfg().clave}), remU = {};
+    for (const [id, i, f, r, u] of remoto) {
+      remU[id] = u;
+      const l = P[id];
+      if (!l || u > l[3]) { P[id] = [i, f, r, u]; bajadas++; }
+    }
+    const subir = Object.entries(P).filter(([id, v]) => v[3] > 0 && v[3] > (remU[id] ?? -1)).map(([id, v]) => [+id, ...v]);
+    for (let k = 0; k < subir.length; k += 500) await rpc('cap_push', {clave: cfg().clave, datos: subir.slice(k, k + 500)});
+    SUC.clear(); guardarLocal(); ultimoSync = Date.now();
+    estadoNube = 'Sincronizado ' + new Date().toLocaleTimeString();
+  } catch (e) { estadoNube = 'Sin sincronizar: ' + String(e.message || e).slice(0, 90); }
+  syncing = false; pintaEstado();
+  if (bajadas && view === 'menu') menu();
+  if (otraVez) { otraVez = false; sincronizar(); }
+}
+function pedirPush() {                       // tras cada respuesta: sube solo lo cambiado
+  if (!nubeOk()) return; clearTimeout(tPush);
+  tPush = setTimeout(async () => {
+    const ids = [...SUC], datos = ids.map(id => [id, ...P[id]]);
+    if (!datos.length || syncing) return;
+    try { await rpc('cap_push', {clave: cfg().clave, datos}); ids.forEach(i => SUC.delete(i)); guardarLocal(); estadoNube = 'Sincronizado ' + new Date().toLocaleTimeString(); }
+    catch (e) { estadoNube = 'Sin sincronizar: ' + String(e.message || e).slice(0, 90); }
+    pintaEstado();
+  }, 700);
+}
+
+let view = 'menu', timer = null;
+function show(...n) { clearInterval(timer); $app.replaceChildren(...n.flat().filter(x => x)); window.scrollTo(0, 0); }
+
+// ---------- tema claro / oscuro (se recuerda en este dispositivo)
+const bt = document.getElementById('tema');
+function setTema(o) {
+  document.documentElement.dataset.tema = o ? 'oscuro' : 'claro';
+  bt.textContent = o ? '☀ Claro' : '☾ Oscuro';
+  ls.set('oscuro', o ? '1' : '0');
+}
+bt.onclick = () => setTema(document.documentElement.dataset.tema !== 'oscuro');
+setTema(ls.get('oscuro') === '1');
+
+// ---------- menu
+async function menu() {
+  view = 'menu';
+  const m = await api('/api/menu');
+  const ex = cargarExamen();
+  show(h('h1', {}, 'Test CAP'), h('p', {class: 'sub'}, 'Las preguntas que más fallas salen más a menudo'),
+    btn('1   Contestar preguntas', () => sesion('normal'), 'big'),
+    btn(`2   Repasar falladas (${m.pendientes})`, () => sesion('falladas'), 'big'),
+    btn('3   Estadísticas', stats, 'big'),
+    btn('4   Modo examen (100 preguntas)', examenNuevo, 'big'),
+    ex ? btn('↻ Continuar examen en curso', examenPintar, 'big acc') : null,
+    h('div', {class: 'nube'}, h('div', {id: 'estadoNube', class: 'muted'}), btn('☁ Ajustes de la nube', ajustes)));
+  pintaEstado();
+}
+function ajustes() {
+  view = 'ajustes';
+  const c = cfg();
+  const campo = (et, id, v) => [h('label', {for: id}, et), h('input', {id, class: 'in', value: v || '', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false'})];
+  show(h('div', {class: 'fila'}, btn('← Menú', menu), h('h2', {}, 'Ajustes de la nube')),
+    h('p', {class: 'muted'}, 'Datos de tu proyecto de Supabase. Se guardan solo en este dispositivo.'),
+    campo('URL del proyecto', 'cfgUrl', c.url), campo('Clave pública (publishable / anon)', 'cfgKey', c.key),
+    campo('Tu clave secreta (la del archivo SQL)', 'cfgClave', c.clave),
+    btn('Guardar y sincronizar', guardarAjustes, 'acc'), h('p', {id: 'estadoNube', class: 'muted'}));
+  pintaEstado();
+}
+async function guardarAjustes() {
+  const v = id => document.getElementById(id).value.trim();
+  ls.set('cap_cfg', JSON.stringify({url: v('cfgUrl'), key: v('cfgKey'), clave: v('cfgClave')}));
+  estadoNube = 'Conectando…'; pintaEstado();
+  await sincronizar();
+  if (estadoNube.startsWith('Sincronizado')) menu();
+}
+// ---------- practica
+let S = {};
+function sesion(modo) { S = {modo, rec: [], hechas: 0, ac: 0, pend: 0, q: null, resuelta: false}; siguiente(); }
+async function siguiente() {
+  const r = await api(`/api/siguiente?modo=${S.modo}&recientes=${S.rec.join(',')}`);
+  if (r.vacio) { view = 'aviso'; return show(h('p', {class: 'aviso'}, '¡No tienes preguntas falladas pendientes!'), btn('Volver al menú', menu, 'acc')); }
+  S.q = r.pregunta; S.pend = r.pendientes; S.resuelta = false; S.rec = [...S.rec, S.q.id].slice(-15);
+  pintarPregunta();
+}
+const sesTxt = () => `Sesión: ${S.ac}/${S.hechas}` + (S.hechas ? ` · ${Math.round(100 * S.ac / S.hechas)}%` : '') +
+  (S.modo === 'falladas' ? ` · pendientes: ${S.pend}` : '');
+function pintarPregunta() {
+  view = 'pregunta';
+  const q = S.q;
+  S.lbl = h('span', {class: 'muted'}, sesTxt());
+  S.opts = q.opciones.map((t, i) => h('button', {class: 'opt', onclick: () => responder(i)}, h('b', {}, i + 1), t));
+  S.res = h('div', {class: 'res'});
+  S.sig = btn('Siguiente  (Enter)', siguiente, 'acc'); S.sig.style.display = 'none';
+  show(h('div', {class: 'fila'}, btn('← Menú', menu), S.lbl),
+    h('div', {class: 'muted'}, `Sección ${q.seccion} · Objetivo ${q.objetivo} · COD ${q.codigo}`),
+    h('div', {class: 'card'}, q.pregunta), S.opts, S.res, S.sig);
+}
+async function responder(i) {
+  if (S.resuelta) return;
+  S.resuelta = true;
+  const letra = 'ABCD'[i];
+  const r = await api('/api/responder', {id: S.q.id, letra});
+  S.hechas++; if (r.ok) S.ac++;
+  const c = 'ABCD'.indexOf(r.correcta);
+  S.opts.forEach((b, k) => b.classList.add(k === c ? 'ok' : k === i ? 'ko' : 'mut'));
+  S.res.className = 'res ' + (r.ok ? 'ok' : 'ko');
+  S.res.textContent = r.ok ? '✔ Correcto' : `✘ Incorrecto — la correcta es la ${c + 1}`;
+  S.lbl.textContent = sesTxt(); S.sig.style.display = '';
+}
+
+// ---------- estadisticas
+const tabla = (cols, filas, izq = []) => h('div', {class: 'tw'}, h('table', {},
+  h('thead', {}, h('tr', {}, cols.map(c => h('th', {}, c)))),
+  h('tbody', {}, filas.map(f => h('tr', {}, f.map((v, i) => h('td', {class: cols[i] === 'Prioridad' ? 'bar' : ''}, v)))))));
+let tabStats = 0;
+async function stats() {
+  view = 'stats';
+  const d = await api('/api/stats');
+  const p1 = h('div', {},
+    tabla(['Tema', 'Vistas', 'Intentos', 'Acierto', 'Falladas pend.', 'Prioridad'], d.temas),
+    h('p', {class: 'resumen'}, `Total: ${d.intentos} respuestas` + (d.intentos ? ` · ${(100 * (d.intentos - d.fallos) / d.intentos).toFixed(1)}% de acierto` : '')),
+    h('p', {class: 'muted'}, 'Ordenado de más a menos prioritario: los temas de arriba salen más a menudo.'));
+  const tot = d.totales['1'] + d.totales['3'];
+  const p2 = h('div', {},
+    tabla(['Tema', 'Media', '% examen', '% sección', 'Banco', 'Tu acierto', ...d.refs.map(n => n.slice(0, 5) + (n.length > 6 ? '.' : ''))], d.dist),
+    h('p', {class: 'resumen'}, `Cada examen: ${d.totales['1']} de la sección 1 (${100 * d.totales['1'] / tot}%) + ${d.totales['3']} de la sección 3 (${100 * d.totales['3'] / tot}%) = ${tot}`),
+    h('p', {class: 'muted'}, 'Media de 4 exámenes oficiales de viajeros: sección 3 con los 4; sección 1 solo con Global y Modelo A (Ampliación y Promoción no la incluyen, marcado con ·).'));
+  const pages = [p1, p2], tabs = h('div', {class: 'tabs'}), cuerpo = h('div');
+  const sel = k => { tabStats = k; [...tabs.children].forEach((b, j) => b.classList.toggle('on', j === k)); cuerpo.replaceChildren(pages[k]); };
+  ['Por tema', 'Distribución del examen'].forEach((t, k) => tabs.append(h('button', {onclick: () => sel(k)}, t)));
+  show(h('div', {class: 'fila'}, btn('← Menú', menu), h('h2', {}, 'Estadísticas')), tabs, cuerpo);
+  sel(tabStats);
+}
+
+// ---------- examen (se guarda en este dispositivo por si se recarga la pagina)
+let E = null;
+const EXKEY = 'cap_examen';
+function cargarExamen() { try { return JSON.parse(ls.get(EXKEY)); } catch (e) { return null; } }
+const guardarExamen = () => ls.set(EXKEY, JSON.stringify(E));
+async function examenNuevo() {
+  if (cargarExamen() && !confirm('Ya tienes un examen en curso. ¿Empezar uno nuevo y descartarlo?')) return;
+  const r = await api('/api/examen/nuevo');
+  E = {preguntas: r.preguntas, resp: {}, i: 0, fin: Date.now() + r.minutos * 60000};
+  guardarExamen(); examenPintar();
+}
+function resto() { return Math.max(Math.floor((E.fin - Date.now()) / 1000), 0); }
+function examenPintar() {
+  if (!E) E = cargarExamen();
+  if (!E) return menu();
+  view = 'examen';
+  const i = E.i, q = E.preguntas[i], n = E.preguntas.length, sel = E.resp[q.id];
+  const reloj = h('span', {class: 'reloj'});
+  const upd = () => {
+    const s = resto();
+    reloj.textContent = `⏱ ${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+    reloj.classList.toggle('rojo', s < 300);
+    if (s <= 0) examenTerminar(true);
+  };
+  const opts = q.opciones.map((t, k) => h('button', {class: 'opt' + ('ABCD'[k] === sel ? ' sel' : ''), onclick: () => examenResponder('ABCD'[k])}, h('b', {}, k + 1), t));
+  show(h('div', {class: 'fila'}, btn('✕ Abandonar', examenAbandonar), reloj),
+    h('div', {class: 'muted'}, `Pregunta ${i + 1} de ${n} · Sección ${q.seccion} · Contestadas ${Object.keys(E.resp).length}`),
+    h('div', {class: 'card'}, q.pregunta), opts,
+    h('div', {class: 'fila'},
+      h('div', {}, i > 0 ? btn('← Anterior', () => examenIr(-1)) : null),
+      h('div', {}, i < n - 1 ? btn('Siguiente →', () => examenIr(1)) : null),
+      btn('Terminar examen', () => examenTerminar(false), 'acc')));
+  upd(); timer = setInterval(upd, 1000);
+}
+function examenResponder(l) {
+  if (view !== 'examen') return;
+  E.resp[E.preguntas[E.i].id] = l;
+  if (E.i < E.preguntas.length - 1) E.i++;
+  guardarExamen(); examenPintar();
+}
+function examenIr(d) { E.i = Math.min(Math.max(E.i + d, 0), E.preguntas.length - 1); guardarExamen(); examenPintar(); }
+function examenAbandonar() { if (confirm('¿Abandonar el examen? Se perderán las respuestas.')) { ls.del(EXKEY); E = null; menu(); } }
+let R = null;
+async function examenTerminar(forzado) {
+  if (view !== 'examen') return;
+  const blancos = E.preguntas.length - Object.keys(E.resp).length;
+  if (!forzado && !confirm(blancos ? `Te quedan ${blancos} preguntas sin contestar.\n\n¿Terminar el examen?` : '¿Terminar el examen?')) return;
+  view = 'enviando'; clearInterval(timer);
+  R = await api('/api/examen/terminar', {ids: E.preguntas.map(p => p.id), respuestas: E.resp});
+  ls.del(EXKEY); E = null; resultado();
+}
+function resultado() {
+  view = 'resultado';
+  const n = R.total, bien = R.aciertos >= 0.7 * n;
+  show(h('h2', {}, 'Resultado del examen'),
+    h('p', {class: 'resumen', style: bien ? 'color:var(--ok-fg)' : ''}, `${R.aciertos} aciertos · ${R.fallos} fallos · ${R.blancos} en blanco  (${Math.round(100 * R.aciertos / n)}% de aciertos)`),
+    tabla(['Tema', 'Preguntas', 'Aciertos', 'Fallos', 'En blanco', 'Acierto'], R.temas), h('div', {style: 'height:14px'}),
+    R.errores.length ? btn(`Revisar errores (${R.errores.length})`, revision, 'acc') : null,
+    btn('Nuevo examen', examenNuevo), btn('Menú', menu));
+}
+function revision() {
+  view = 'revision';
+  const L = 'ABCD';
+  show(h('div', {class: 'fila'}, btn('← Resultado', resultado), h('h2', {}, 'Revisión de errores')),
+    R.errores.map(e => h('div', {class: 'err'}, h('div', {class: 'q'}, `${e.n}. [${e.tema}] ${e.pregunta}`),
+      e.opciones.map((t, k) => h('div', {class: 'o ' + (L[k] === e.correcta ? 'ok' : L[k] === e.tuya ? 'ko' : 'mut')},
+        (L[k] === e.correcta ? '✔ ' : L[k] === e.tuya ? '✘ ' : '   ') + `${k + 1}) ${t}` + (L[k] === e.tuya ? '   ← tu respuesta' : ''))),
+      e.tuya ? null : h('div', {class: 'mut'}, '(sin contestar)'))));
+}
+
+// ---------- teclado (en el PC tambien funciona)
+document.addEventListener('keydown', ev => {
+  const k = ev.key;
+  if (view === 'pregunta') {
+    if ('1234'.includes(k) && k) responder(+k - 1);
+    else if (['Enter', ' ', 'ArrowRight'].includes(k) && S.resuelta) siguiente();
+    else if (k === 'Escape') menu();
+  } else if (view === 'examen') {
+    if ('1234'.includes(k) && k) examenResponder('ABCD'[+k - 1]);
+    else if (k === 'ArrowRight' || k === 'Enter') examenIr(1);
+    else if (k === 'ArrowLeft') examenIr(-1);
+    else if (k === 'Escape') examenAbandonar();
+  } else if (view === 'menu') {
+    if (k === '1') sesion('normal'); else if (k === '2') sesion('falladas');
+    else if (k === '3') stats(); else if (k === '4') examenNuevo();
+  } else if (k === 'Escape' && view !== 'enviando') menu();
+});
+async function iniciar() {
+  cargarLocal();
+  try {
+    const arr = await (await fetch('preguntas.json')).json();
+    Q = arr.map(a => ({id: a[0], s: a[1], o: a[2], c: a[3], q: a[4], op: [a[5], a[6], a[7], a[8]], ok: a[9]}));
+    QID = new Map(Q.map(q => [q.id, q]));
+  } catch (e) { return show(h('p', {class: 'aviso'}, 'No se pudieron cargar las preguntas. Abre la app con internet al menos una vez.'), btn('Reintentar', iniciar, 'acc')); }
+  menu(); sincronizar();
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sincronizar(); });
+window.addEventListener('online', sincronizar);
+setInterval(() => { if (document.visibilityState === 'visible' && view !== 'examen' && Date.now() - ultimoSync > 45000) sincronizar(); }, 15000);
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+iniciar();
+</script>
+</body>
+</html>
