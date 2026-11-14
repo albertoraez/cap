@@ -55,7 +55,19 @@ th{background:var(--btn);position:sticky;top:0}th:first-child,td:first-child{tex
 .nube{margin-top:26px;text-align:center}.nube .btn{display:inline-block;width:auto;margin-top:8px;padding:8px 14px;font-size:.9rem}
 label{display:block;font-weight:700;margin:6px 0 2px;font-size:.9rem}
 .in{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font:inherit;margin:2px 0 12px}
-.malo{color:var(--ko-fg)}</style>
+.malo{color:var(--ko-fg)}
+tr.click{cursor:pointer}tr.click:hover td{background:var(--btn-h)}
+td.okc{color:var(--ok-fg);font-weight:700}td.koc{color:var(--ko-fg);font-weight:700}
+.nota{font-size:1.6rem;font-weight:800;margin:4px 0}.nota.ok{color:var(--ok-fg)}.nota.ko{color:var(--ko-fg)}
+.prev{background:var(--card);border:1px solid var(--border);border-radius:10px;margin:8px 0;overflow:hidden}
+.prev>button{display:block;width:100%;border:0;background:none;color:inherit;font:inherit;font-size:.9rem;font-weight:700;text-align:left;padding:10px 12px;cursor:pointer}
+.prev.ok>button{color:var(--ok-fg)}.prev.ko>button{color:var(--ko-fg)}
+.prev .cu{padding:0 12px 10px;font-size:.9rem}.prev .cu .q{font-weight:700;margin-bottom:4px}
+.pq{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:8px 0;cursor:pointer}
+.pq .e{font-size:.85rem;font-weight:700}.pq .e.ok{color:var(--ok-fg)}.pq .e.ko{color:var(--ko-fg)}.pq .e.mut{color:var(--muted)}
+.pq .t{margin-top:2px}.pq .o{padding:2px 0;font-size:.92rem}.pq .o.ok{color:var(--ok-fg);font-weight:600}.pq .o.mut{color:var(--muted)}
+.btn.sm{padding:8px 12px;font-size:.9rem}
+.ayuda{font-size:.8rem;color:var(--muted);margin:2px 0 6px}</style>
 </head>
 <body>
 <button id="tema"></button>
@@ -86,16 +98,25 @@ const CONTEO = {'3|1.5': [5, 9, 9, 14], '3|1.6': [6, 5, 5, 4], '3|2.3': [3, 5, 5
   '1|3.1': [0, 8, 0, 8], '1|3.2': [0, 3, 0, 2], '1|3.3': [0, 0, 0, 5], '1|3.4': [0, 0, 0, 5], '1|3.5': [0, 7, 0, 9], '1|3.6': [0, 5, 0, 5]};
 const TOTAL = {1: 75, 3: 25};
 const temaDe = q => `S${q.s}-${q.o}`;
-const st = q => P[q.id] || [0, 0, 0, 0];           // [intentos, fallos, racha, ultimo(ms)]
+const st = q => P[q.id] || [0, 0, 0, 0, 0];        // [intentos, fallos, racha, ultimo(ms), acierto_en]
+const NOTA_APROBADO = 50;
+const nota = (ac, fa) => ac - 0.5 * fa;
+const fmt = n => n.toFixed(1).replace('.', ',');
+const fecha = ms => new Date(ms).toLocaleString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'});
+let EXS = [];                                       // historial de examenes terminados
+const estadoQ = q => { const [i, , , , a] = st(q); return i === 0 ? ['— Sin contestar', 'mut'] : a > 0 ? [`✔ Acertada en el intento ${a}`, 'ok'] : ['✘ Sin acertar aún', 'ko']; };
 const pub = q => ({id: q.id, seccion: q.s, objetivo: q.o, codigo: q.c, tema: temaDe(q), pregunta: q.q, opciones: q.op});
 function cargarLocal() {
   try { P = JSON.parse(ls.get('cap_prog') || '{}'); } catch (e) { P = {}; }
+  for (const id in P) if (P[id].length < 5) P[id].push(P[id][0] > P[id][1] ? P[id][1] + 1 : 0);   // datos de la version antigua (aproximado)
+  try { EXS = JSON.parse(ls.get('cap_examenes') || '[]'); } catch (e) { EXS = []; }
   try { SUC = new Set(JSON.parse(ls.get('cap_suc') || '[]')); } catch (e) { SUC = new Set(); }
 }
 function guardarLocal() { ls.set('cap_prog', JSON.stringify(P)); ls.set('cap_suc', JSON.stringify([...SUC])); }
+const guardarExamenes = () => ls.set('cap_examenes', JSON.stringify(EXS));
 function registrar(q, ok) {
-  const [i, f, r] = st(q);
-  P[q.id] = [i + 1, f + (ok ? 0 : 1), ok ? r + 1 : 0, Date.now()];
+  const [i, f, r, , a] = st(q);
+  P[q.id] = [i + 1, f + (ok ? 0 : 1), ok ? r + 1 : 0, Date.now(), (a === 0 && ok) ? i + 1 : a];
   SUC.add(q.id); guardarLocal(); pedirPush();
 }
 const pendientes = () => Q.filter(q => { const [, f, r] = st(q); return f > 0 && r < RACHA_DOM; });
@@ -175,6 +196,25 @@ function estadisticas() {
   });
   return {temas, intentos, fallos, dist, refs: REFS.map(r => r[0]), totales: TOTAL};
 }
+function contar(det) {
+  let ac = 0, fa = 0, bl = 0;
+  for (const [id, l] of det) { const qq = QID.get(id); if (!qq) continue; if (!l) bl++; else if (l === qq.ok) ac++; else fa++; }
+  return {ac, fa, bl};
+}
+function resumenExamen(ex) {                       // todo lo que hace falta para pintar un examen (nuevo o guardado)
+  const por = {}, errores = [];
+  ex.det.forEach(([id, l], i) => {
+    const qq = QID.get(id); if (!qq) return;
+    const t = por[temaDe(qq)] || (por[temaDe(qq)] = [0, 0, 0, 0]);
+    t[0]++;
+    if (!l) t[3]++; else if (l === qq.ok) t[1]++; else t[2]++;
+    if (l !== qq.ok) errores.push({...pub(qq), correcta: qq.ok, n: i + 1, tuya: l || null});
+  });
+  const temas = Object.entries(por).sort((a, b) => nota(a[1][1], a[1][2]) / a[1][0] - nota(b[1][1], b[1][2]) / b[1][0])
+    .map(([k, v]) => [k, v[0], v[1], v[2], v[3], fmt(nota(v[1], v[2]))]);
+  const n = nota(ex.ac, ex.fa);
+  return {id: ex.id, aciertos: ex.ac, fallos: ex.fa, blancos: ex.bl, total: ex.ac + ex.fa + ex.bl, nota: n, aprobado: n >= NOTA_APROBADO, temas, errores};
+}
 const api = async (p, body) => {
   const u = new URL(p, 'http://x'), q = u.searchParams;
   if (u.pathname === '/api/menu') return {pendientes: pendientes().length, preguntas: Q.length};
@@ -191,18 +231,12 @@ const api = async (p, body) => {
     const qq = QID.get(+body.id), ok = body.letra === qq.ok; registrar(qq, ok); return {ok, correcta: qq.ok};
   }
   if (u.pathname === '/api/examen/terminar') {
-    let ac = 0, fa = 0, bl = 0; const por = {}, errores = [];
-    body.ids.forEach((id, i) => {
-      const qq = QID.get(+id); if (!qq) return;
-      const l = body.respuestas[qq.id], t = por[temaDe(qq)] || (por[temaDe(qq)] = [0, 0, 0, 0]);
-      t[0]++;
-      if (!'ABCD'.includes(l || '-')) { bl++; t[3]++; }
-      else { registrar(qq, l === qq.ok); if (l === qq.ok) { ac++; t[1]++; } else { fa++; t[2]++; } }
-      if (l !== qq.ok) errores.push({...pub(qq), correcta: qq.ok, n: i + 1, tuya: 'ABCD'.includes(l || '-') ? l : null});
-    });
-    const temas = Object.entries(por).sort((a, b) => a[1][1] / a[1][0] - b[1][1] / b[1][0])
-      .map(([k, v]) => [k, v[0], v[1], v[2], v[3], Math.round(100 * v[1] / v[0]) + '%']);
-    return {aciertos: ac, fallos: fa, blancos: bl, total: ac + fa + bl, temas, errores};
+    const det = body.ids.map(id => [+id, 'ABCD'.includes(body.respuestas[id] || '-') ? body.respuestas[id] : '']);
+    for (const [id, l] of det) if (l) { const qq = QID.get(id); registrar(qq, l === qq.ok); }
+    const ex = {id: Date.now(), det};
+    Object.assign(ex, contar(det));
+    EXS.push(ex); guardarExamenes();
+    return resumenExamen(ex);
   }
   throw new Error('ruta desconocida');
 };
@@ -214,7 +248,7 @@ let estadoNube = nubeOk() ? 'Conectando…' : 'Sin configurar', syncing = false,
 function pintaEstado() { const e = document.getElementById('estadoNube'); if (e) { e.textContent = '☁ ' + estadoNube; e.className = estadoNube.startsWith('Sin sincronizar') ? 'malo' : 'muted'; } }
 async function rpc(fn, cuerpo) {
   const c = cfg();
-  const r = await fetch(c.url.replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {method: 'POST', headers: {'apikey': c.key, 'Content-Type': 'application/json'}, body: JSON.stringify(cuerpo)});
+  const r = await fetch(c.url.trim().replace(/\/+$/, '').replace(/\/rest\/v1$/, '').replace(/\/+$/, '') + '/rest/v1/rpc/' + fn, {method: 'POST', headers: {'apikey': c.key, 'Content-Type': 'application/json'}, body: JSON.stringify(cuerpo)});
   if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()).slice(0, 120));
   return r.json();
 }
@@ -224,18 +258,26 @@ async function sincronizar() {
   syncing = true; let bajadas = 0;
   try {
     const remoto = await rpc('cap_pull', {clave: cfg().clave}), remU = {};
-    for (const [id, i, f, r, u] of remoto) {
+    for (const fila of remoto) {
+      const [id, i, f, r, u] = fila, a = fila[5] || 0;
       remU[id] = u;
       const l = P[id];
-      if (!l || u > l[3]) { P[id] = [i, f, r, u]; bajadas++; }
+      if (!l || u > l[3]) { P[id] = [i, f, r, u, a]; bajadas++; }
     }
     const subir = Object.entries(P).filter(([id, v]) => v[3] > 0 && v[3] > (remU[id] ?? -1)).map(([id, v]) => [+id, ...v]);
     for (let k = 0; k < subir.length; k += 500) await rpc('cap_push', {clave: cfg().clave, datos: subir.slice(k, k + 500)});
+    // examenes: union por id (un examen terminado no cambia)
+    const exRem = await rpc('cap_pull_ex', {clave: cfg().clave}), ids = new Set(exRem.map(x => x[0]));
+    for (const [id, ac, fa, bl, det] of exRem) if (!EXS.some(x => x.id === id)) { EXS.push({id, ac, fa, bl, det}); bajadas++; }
+    EXS.sort((x, y) => x.id - y.id); guardarExamenes();
+    const exSub = EXS.filter(x => !ids.has(x.id)).map(x => [x.id, x.ac, x.fa, x.bl, x.det]);
+    for (let k = 0; k < exSub.length; k += 50) await rpc('cap_push_ex', {clave: cfg().clave, datos: exSub.slice(k, k + 50)});
     SUC.clear(); guardarLocal(); ultimoSync = Date.now();
     estadoNube = 'Sincronizado ' + new Date().toLocaleTimeString();
   } catch (e) { estadoNube = 'Sin sincronizar: ' + String(e.message || e).slice(0, 90); }
   syncing = false; pintaEstado();
   if (bajadas && view === 'menu') menu();
+  else if (bajadas && view === 'stats') stats();
   if (otraVez) { otraVez = false; sincronizar(); }
 }
 function pedirPush() {                       // tras cada respuesta: sube solo lo cambiado
@@ -296,8 +338,9 @@ async function guardarAjustes() {
 }
 // ---------- practica
 let S = {};
-function sesion(modo) { S = {modo, rec: [], hechas: 0, ac: 0, pend: 0, q: null, resuelta: false}; siguiente(); }
+function sesion(modo) { S = {modo, rec: [], hechas: 0, ac: 0, pend: 0, q: null, resuelta: false, last: null, prev: null, prevAbierto: false}; siguiente(); }
 async function siguiente() {
+  if (S.last) S.prev = S.last;                       // la que acabas de contestar pasa a ser "la anterior"
   const r = await api(`/api/siguiente?modo=${S.modo}&recientes=${S.rec.join(',')}`);
   if (r.vacio) { view = 'aviso'; return show(h('p', {class: 'aviso'}, '¡No tienes preguntas falladas pendientes!'), btn('Volver al menú', menu, 'acc')); }
   S.q = r.pregunta; S.pend = r.pendientes; S.resuelta = false; S.rec = [...S.rec, S.q.id].slice(-15);
@@ -305,6 +348,19 @@ async function siguiente() {
 }
 const sesTxt = () => `Sesión: ${S.ac}/${S.hechas}` + (S.hechas ? ` · ${Math.round(100 * S.ac / S.hechas)}%` : '') +
   (S.modo === 'falladas' ? ` · pendientes: ${S.pend}` : '');
+function cajaAnterior() {
+  const p = S.prev; if (!p) return null;
+  const box = h('div', {class: 'prev ' + (p.ok ? 'ok' : 'ko')}), L = 'ABCD';
+  const cuerpo = h('div', {class: 'cu'},
+    h('div', {class: 'q'}, p.q.pregunta),
+    h('div', {}, `Tu respuesta: ${L.indexOf(p.letra) + 1}) ${p.q.opciones[L.indexOf(p.letra)]}`),
+    p.ok ? null : h('div', {class: 'mut'}, `Correcta: ${L.indexOf(p.correcta) + 1}) ${p.q.opciones[L.indexOf(p.correcta)]}`));
+  const cab = h('button', {});
+  const pinta = () => { cab.textContent = `↶ Pregunta anterior: ${p.ok ? '✔ acertada' : '✘ fallada'}  ${S.prevAbierto ? '▲' : '▼ ver'}`; cuerpo.style.display = S.prevAbierto ? '' : 'none'; };
+  cab.onclick = () => { S.prevAbierto = !S.prevAbierto; pinta(); };
+  box.append(cab, cuerpo); pinta();
+  return box;
+}
 function pintarPregunta() {
   view = 'pregunta';
   const q = S.q;
@@ -312,7 +368,7 @@ function pintarPregunta() {
   S.opts = q.opciones.map((t, i) => h('button', {class: 'opt', onclick: () => responder(i)}, h('b', {}, i + 1), t));
   S.res = h('div', {class: 'res'});
   S.sig = btn('Siguiente  (Enter)', siguiente, 'acc'); S.sig.style.display = 'none';
-  show(h('div', {class: 'fila'}, btn('← Menú', menu), S.lbl),
+  show(h('div', {class: 'fila'}, btn('← Menú', menu), S.lbl), cajaAnterior(),
     h('div', {class: 'muted'}, `Sección ${q.seccion} · Objetivo ${q.objetivo} · COD ${q.codigo}`),
     h('div', {class: 'card'}, q.pregunta), S.opts, S.res, S.sig);
 }
@@ -322,6 +378,7 @@ async function responder(i) {
   const letra = 'ABCD'[i];
   const r = await api('/api/responder', {id: S.q.id, letra});
   S.hechas++; if (r.ok) S.ac++;
+  S.last = {q: S.q, letra, correcta: r.correcta, ok: r.ok};
   const c = 'ABCD'.indexOf(r.correcta);
   S.opts.forEach((b, k) => b.classList.add(k === c ? 'ok' : k === i ? 'ko' : 'mut'));
   S.res.className = 'res ' + (r.ok ? 'ok' : 'ko');
@@ -330,28 +387,58 @@ async function responder(i) {
 }
 
 // ---------- estadisticas
-const tabla = (cols, filas, izq = []) => h('div', {class: 'tw'}, h('table', {},
+const tabla = (cols, filas, izq = [], onrow = null, clases = null) => h('div', {class: 'tw'}, h('table', {},
   h('thead', {}, h('tr', {}, cols.map(c => h('th', {}, c)))),
-  h('tbody', {}, filas.map(f => h('tr', {}, f.map((v, i) => h('td', {class: cols[i] === 'Prioridad' ? 'bar' : ''}, v)))))));
+  h('tbody', {}, filas.map((f, k) => h('tr', onrow ? {class: 'click', onclick: () => onrow(f, k)} : {},
+    f.map((v, i) => h('td', {class: cols[i] === 'Prioridad' ? 'bar' : (clases && clases[k] && i < 3 ? clases[k] : '')}, v)))))));
 let tabStats = 0;
 async function stats() {
   view = 'stats';
   const d = await api('/api/stats');
   const p1 = h('div', {},
-    tabla(['Tema', 'Vistas', 'Intentos', 'Acierto', 'Falladas pend.', 'Prioridad'], d.temas),
+    tabla(['Tema', 'Vistas', 'Intentos', 'Acierto', 'Falladas pend.', 'Prioridad'], d.temas, [], f => temaDetalle(f[0])),
     h('p', {class: 'resumen'}, `Total: ${d.intentos} respuestas` + (d.intentos ? ` · ${(100 * (d.intentos - d.fallos) / d.intentos).toFixed(1)}% de acierto` : '')),
-    h('p', {class: 'muted'}, 'Ordenado de más a menos prioritario: los temas de arriba salen más a menudo.'));
+    h('p', {class: 'muted'}, 'Toca un tema para ver sus preguntas (contestadas, a qué intento las acertaste y las que faltan). Los de arriba salen más a menudo.'));
   const tot = d.totales['1'] + d.totales['3'];
   const p2 = h('div', {},
     tabla(['Tema', 'Media', '% examen', '% sección', 'Banco', 'Tu acierto', ...d.refs.map(n => n.slice(0, 5) + (n.length > 6 ? '.' : ''))], d.dist),
     h('p', {class: 'resumen'}, `Cada examen: ${d.totales['1']} de la sección 1 (${100 * d.totales['1'] / tot}%) + ${d.totales['3']} de la sección 3 (${100 * d.totales['3'] / tot}%) = ${tot}`),
     h('p', {class: 'muted'}, 'Media de 4 exámenes oficiales de viajeros: sección 3 con los 4; sección 1 solo con Global y Modelo A (Ampliación y Promoción no la incluyen, marcado con ·).'));
-  const pages = [p1, p2], tabs = h('div', {class: 'tabs'}), cuerpo = h('div');
+  const notas = EXS.map(x => nota(x.ac, x.fa)), lista = [...EXS].reverse();
+  const p3 = h('div', {}, h('p', {class: 'resumen'}, EXS.length ? `${EXS.length} exámenes · ${notas.filter(n => n >= NOTA_APROBADO).length} aprobados · nota media ${fmt(notas.reduce((a, b) => a + b, 0) / notas.length)} · mejor ${fmt(Math.max(...notas))}` : 'Aún no has hecho ningún examen.'),
+    EXS.length ? tabla(['Fecha', 'Nota', 'Resultado', 'Aciertos', 'Fallos', 'En blanco'],
+      lista.map(x => { const n = nota(x.ac, x.fa); return [fecha(x.id), fmt(n) + ' / 100', n >= NOTA_APROBADO ? 'APROBADO' : 'Suspenso', x.ac, x.fa, x.bl]; }),
+      [], (f, k) => examenAbrir(lista[k].id), lista.map(x => nota(x.ac, x.fa) >= NOTA_APROBADO ? 'okc' : 'koc')) : null,
+    EXS.length ? h('p', {class: 'muted'}, 'Toca un examen para ver las preguntas que fallaste o dejaste sin contestar.') : null);
+  const pages = [p1, p2, p3], tabs = h('div', {class: 'tabs'}), cuerpo = h('div');
   const sel = k => { tabStats = k; [...tabs.children].forEach((b, j) => b.classList.toggle('on', j === k)); cuerpo.replaceChildren(pages[k]); };
-  ['Por tema', 'Distribución del examen'].forEach((t, k) => tabs.append(h('button', {onclick: () => sel(k)}, t)));
+  ['Por tema', 'Distribución', 'Mis exámenes'].forEach((t, k) => tabs.append(h('button', {onclick: () => sel(k)}, t)));
   show(h('div', {class: 'fila'}, btn('← Menú', menu), h('h2', {}, 'Estadísticas')), tabs, cuerpo);
   sel(tabStats);
 }
+
+// ---------- detalle de un tema
+let filtroTema = 'todas';
+function temaDetalle(t, filtro) {
+  view = 'detalle'; S_det = t; if (filtro) filtroTema = filtro;
+  const todas = Q.filter(q => temaDe(q) === t).sort((a, b) => (a.c - b.c) || String(a.c).localeCompare(String(b.c)));
+  const grupos = {
+    todas: ['Todas', todas], acertadas: ['Acertadas', todas.filter(q => st(q)[4] > 0)],
+    falladas: ['Sin acertar', todas.filter(q => st(q)[0] > 0 && st(q)[4] === 0)], nuevas: ['Sin contestar', todas.filter(q => st(q)[0] === 0)]};
+  const tabs = h('div', {class: 'tabs', style: 'flex-wrap:wrap'});
+  for (const [k, [nom, l]] of Object.entries(grupos)) tabs.append(h('button', {class: k === filtroTema ? 'on' : '', onclick: () => temaDetalle(t, k)}, `${nom} (${l.length})`));
+  const L = 'ABCD';
+  const items = grupos[filtroTema][1].map(q => {
+    const [txt, cl] = estadoQ(q), [i, f] = st(q);
+    const det = h('div', {style: 'display:none'}, q.op.map((o, k) => h('div', {class: 'o ' + (L[k] === q.ok ? 'ok' : 'mut')}, (L[k] === q.ok ? '✔ ' : '   ') + `${k + 1}) ${o}`)));
+    return h('div', {class: 'pq', onclick: () => { det.style.display = det.style.display === 'none' ? '' : 'none'; }},
+      h('div', {class: 'e ' + cl}, `COD ${q.c} · ${txt}` + (i ? `  ·  ${i} ${i === 1 ? 'intento' : 'intentos'}, ${f} ${f === 1 ? 'fallo' : 'fallos'}` : '')), h('div', {class: 't'}, q.q), det);
+  });
+  show(h('div', {class: 'fila'}, btn('← Estadísticas', stats), h('h2', {}, `Tema ${t}`)),
+    h('p', {class: 'resumen'}, `${todas.length} preguntas · ${grupos.acertadas[1].length} acertadas · ${grupos.falladas[1].length} sin acertar · ${grupos.nuevas[1].length} sin contestar`),
+    tabs, h('p', {class: 'ayuda'}, 'Toca una pregunta para ver sus respuestas.'), items.length ? items : h('p', {class: 'muted'}, 'No hay preguntas en este grupo.'));
+}
+let S_det = null;
 
 // ---------- examen (se guarda en este dispositivo por si se recarga la pagina)
 let E = null;
@@ -380,7 +467,9 @@ function examenPintar() {
   const opts = q.opciones.map((t, k) => h('button', {class: 'opt' + ('ABCD'[k] === sel ? ' sel' : ''), onclick: () => examenResponder('ABCD'[k])}, h('b', {}, k + 1), t));
   show(h('div', {class: 'fila'}, btn('✕ Abandonar', examenAbandonar), reloj),
     h('div', {class: 'muted'}, `Pregunta ${i + 1} de ${n} · Sección ${q.seccion} · Contestadas ${Object.keys(E.resp).length}`),
+    h('div', {class: 'ayuda'}, `Acierto +1 · Fallo −0,5 · En blanco 0 · Aprobado con ${NOTA_APROBADO}`),
     h('div', {class: 'card'}, q.pregunta), opts,
+    sel ? btn('Dejar sin contestar (0)  ·  tecla 0', examenBorrar, 'sm') : null,
     h('div', {class: 'fila'},
       h('div', {}, i > 0 ? btn('← Anterior', () => examenIr(-1)) : null),
       h('div', {}, i < n - 1 ? btn('Siguiente →', () => examenIr(1)) : null),
@@ -389,38 +478,46 @@ function examenPintar() {
 }
 function examenResponder(l) {
   if (view !== 'examen') return;
-  E.resp[E.preguntas[E.i].id] = l;
+  const id = E.preguntas[E.i].id;
+  if (E.resp[id] === l) return examenBorrar();       // tocar la ya marcada la desmarca (en blanco)
+  E.resp[id] = l;
   if (E.i < E.preguntas.length - 1) E.i++;
   guardarExamen(); examenPintar();
 }
+function examenBorrar() { if (view !== 'examen') return; delete E.resp[E.preguntas[E.i].id]; guardarExamen(); examenPintar(); }
 function examenIr(d) { E.i = Math.min(Math.max(E.i + d, 0), E.preguntas.length - 1); guardarExamen(); examenPintar(); }
 function examenAbandonar() { if (confirm('¿Abandonar el examen? Se perderán las respuestas.')) { ls.del(EXKEY); E = null; menu(); } }
 let R = null;
 async function examenTerminar(forzado) {
   if (view !== 'examen') return;
   const blancos = E.preguntas.length - Object.keys(E.resp).length;
-  if (!forzado && !confirm(blancos ? `Te quedan ${blancos} preguntas sin contestar.\n\n¿Terminar el examen?` : '¿Terminar el examen?')) return;
+  if (!forzado && !confirm(blancos ? `Te quedan ${blancos} preguntas sin contestar (puntúan 0).\n\n¿Terminar el examen?` : '¿Terminar el examen?')) return;
   view = 'enviando'; clearInterval(timer);
   R = await api('/api/examen/terminar', {ids: E.preguntas.map(p => p.id), respuestas: E.resp});
-  ls.del(EXKEY); E = null; resultado();
+  ls.del(EXKEY); E = null; sincronizar(); resultado();      // sube el examen a la nube
+}
+function examenAbrir(id) {
+  const ex = EXS.find(x => x.id === id); if (!ex) return;
+  R = resumenExamen(ex); R.hist = true; resultado();
 }
 function resultado() {
   view = 'resultado';
-  const n = R.total, bien = R.aciertos >= 0.7 * n;
-  show(h('h2', {}, 'Resultado del examen'),
-    h('p', {class: 'resumen', style: bien ? 'color:var(--ok-fg)' : ''}, `${R.aciertos} aciertos · ${R.fallos} fallos · ${R.blancos} en blanco  (${Math.round(100 * R.aciertos / n)}% de aciertos)`),
-    tabla(['Tema', 'Preguntas', 'Aciertos', 'Fallos', 'En blanco', 'Acierto'], R.temas), h('div', {style: 'height:14px'}),
-    R.errores.length ? btn(`Revisar errores (${R.errores.length})`, revision, 'acc') : null,
-    btn('Nuevo examen', examenNuevo), btn('Menú', menu));
+  show(h('h2', {}, R.hist ? 'Examen del ' + fecha(R.id) : 'Resultado del examen'),
+    h('div', {class: 'nota ' + (R.aprobado ? 'ok' : 'ko')}, `Nota: ${fmt(R.nota)} / 100 — ${R.aprobado ? 'APROBADO' : 'SUSPENSO'}`),
+    h('p', {class: 'muted'}, `${R.aciertos} aciertos (+${R.aciertos}) · ${R.fallos} fallos (−${fmt(R.fallos * 0.5)}) · ${R.blancos} en blanco (0) · Para aprobar: ${NOTA_APROBADO}`),
+    tabla(['Tema', 'Preguntas', 'Aciertos', 'Fallos', 'En blanco', 'Puntos'], R.temas), h('div', {style: 'height:14px'}),
+    R.errores.length ? btn(`Ver falladas y sin contestar (${R.errores.length})`, revision, 'acc') : null,
+    R.hist ? btn('← Mis exámenes', () => { tabStats = 2; stats(); }) : btn('Nuevo examen', examenNuevo), btn('Menú', menu));
 }
 function revision() {
   view = 'revision';
   const L = 'ABCD';
-  show(h('div', {class: 'fila'}, btn('← Resultado', resultado), h('h2', {}, 'Revisión de errores')),
-    R.errores.map(e => h('div', {class: 'err'}, h('div', {class: 'q'}, `${e.n}. [${e.tema}] ${e.pregunta}`),
+  show(h('div', {class: 'fila'}, btn('← Resultado', resultado), h('h2', {}, 'Falladas y sin contestar')),
+    R.errores.map(e => h('div', {class: 'err'},
+      h('div', {class: e.tuya ? 'ko' : 'mut'}, e.tuya ? '✘ FALLADA (−0,5)' : '— SIN CONTESTAR (0)'),
+      h('div', {class: 'q'}, `${e.n}. [${e.tema}] ${e.pregunta}`),
       e.opciones.map((t, k) => h('div', {class: 'o ' + (L[k] === e.correcta ? 'ok' : L[k] === e.tuya ? 'ko' : 'mut')},
-        (L[k] === e.correcta ? '✔ ' : L[k] === e.tuya ? '✘ ' : '   ') + `${k + 1}) ${t}` + (L[k] === e.tuya ? '   ← tu respuesta' : ''))),
-      e.tuya ? null : h('div', {class: 'mut'}, '(sin contestar)'))));
+        (L[k] === e.correcta ? '✔ ' : L[k] === e.tuya ? '✘ ' : '   ') + `${k + 1}) ${t}` + (L[k] === e.tuya ? '   ← tu respuesta' : ''))))));
 }
 
 // ---------- teclado (en el PC tambien funciona)
@@ -434,11 +531,16 @@ document.addEventListener('keydown', ev => {
     if ('1234'.includes(k) && k) examenResponder('ABCD'[+k - 1]);
     else if (k === 'ArrowRight' || k === 'Enter') examenIr(1);
     else if (k === 'ArrowLeft') examenIr(-1);
+    else if (k === '0' || k === 'Backspace' || k === 'Delete') examenBorrar();
     else if (k === 'Escape') examenAbandonar();
   } else if (view === 'menu') {
     if (k === '1') sesion('normal'); else if (k === '2') sesion('falladas');
     else if (k === '3') stats(); else if (k === '4') examenNuevo();
-  } else if (k === 'Escape' && view !== 'enviando') menu();
+  } else if (k === 'Escape' && view !== 'enviando') {
+    if (view === 'revision') resultado();
+    else if (view === 'detalle' || (view === 'resultado' && R && R.hist)) stats();
+    else menu();
+  }
 });
 async function iniciar() {
   cargarLocal();
