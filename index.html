@@ -246,7 +246,7 @@ const api = async (p, body) => {
     for (const [id, l] of det) if (l) { const qq = QID.get(id); registrar(qq, l === qq.ok); }
     const ex = {id: Date.now(), det};
     Object.assign(ex, contar(det));
-    EXS.push(ex); guardarExamenes();
+    if (ex.ac + ex.fa > 0) { EXS.push(ex); guardarExamenes(); }     // sin ninguna respuesta no se guarda
     return resumenExamen(ex);
   }
   throw new Error('ruta desconocida');
@@ -476,12 +476,13 @@ async function stats() {
     tabla(d.cabDist, d.dist),
     h('p', {class: 'resumen'}, `Cada examen: ${d.totales['1']} de la sección 1 (${100 * d.totales['1'] / tot}%) + ${d.totales['3']} de la sección 3 (${100 * d.totales['3'] / tot}%) = ${tot}`),
     h('p', {class: 'muted'}, d.notaDist));
-  const notas = EXS.map(x => nota(x.ac, x.fa)), lista = [...EXS].reverse();
-  const p3 = h('div', {}, h('p', {class: 'resumen'}, EXS.length ? `${EXS.length} exámenes · ${notas.filter(n => n >= NOTA_APROBADO).length} aprobados · nota media ${fmt(notas.reduce((a, b) => a + b, 0) / notas.length)} · mejor ${fmt(Math.max(...notas))}` : 'Aún no has hecho ningún examen.'),
-    EXS.length ? tabla(['Fecha', 'Nota', 'Resultado', 'Aciertos', 'Fallos', 'En blanco'],
+  const valid = EXS.filter(x => x.ac + x.fa > 0);       // los examenes abiertos por error (todo en blanco) no cuentan
+  const notas = valid.map(x => nota(x.ac, x.fa)), lista = [...valid].reverse();
+  const p3 = h('div', {}, h('p', {class: 'resumen'}, valid.length ? `${valid.length} exámenes · ${notas.filter(n => n >= NOTA_APROBADO).length} aprobados · nota media ${fmt(notas.reduce((a, b) => a + b, 0) / notas.length)} · mejor ${fmt(Math.max(...notas))}` : 'Aún no has hecho ningún examen.'),
+    valid.length ? tabla(['Fecha', 'Nota', 'Resultado', 'Aciertos', 'Fallos', 'En blanco'],
       lista.map(x => { const n = nota(x.ac, x.fa); return [fecha(x.id), fmt(n) + ' / 100', n >= NOTA_APROBADO ? 'APROBADO' : 'Suspenso', x.ac, x.fa, x.bl]; }),
       [], (f, k) => examenAbrir(lista[k].id), lista.map(x => nota(x.ac, x.fa) >= NOTA_APROBADO ? 'okc' : 'koc')) : null,
-    EXS.length ? h('p', {class: 'muted'}, 'Toca un examen para ver las preguntas que fallaste o dejaste sin contestar.') : null);
+    valid.length ? h('p', {class: 'muted'}, 'Toca un examen para ver las preguntas que fallaste o dejaste sin contestar.') : null);
   const pages = [p1, p2, p3], tabs = h('div', {class: 'tabs'}), cuerpo = h('div');
   const sel = k => { tabStats = k; [...tabs.children].forEach((b, j) => b.classList.toggle('on', j === k)); cuerpo.replaceChildren(pages[k]); };
   ['Por tema', 'Distribución', 'Mis exámenes'].forEach((t, k) => tabs.append(h('button', {onclick: () => sel(k)}, t)));
