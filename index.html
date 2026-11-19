@@ -134,9 +134,17 @@ function tasasPorTema() {
   const out = {}; for (const k in a) out[k] = (a[k][0] + 1) / (a[k][1] + 2);
   return out;
 }
+let FX = null;                                     // factor por tema segun su peso en el examen (ver factoresExamen)
+function factoresExamen() {
+  const n = {}; for (const q of Q) n[q.s + '|' + q.o] = (n[q.s + '|' + q.o] || 0) + 1;
+  const base = TEMAS_EX.reduce((a, k) => a + media(k), 0) / Q.length, out = {};
+  for (const k in n) out[k] = Math.max(0.3, media(k) / n[k] / base);       // prob. de que una pregunta del tema caiga, relativa a la media
+  return out;
+}
 function peso(q, tasas, ahora) {
   const [i, f, r, u] = st(q);
-  let w = 0.5 + 3.0 * tasas[temaDe(q)];
+  if (!FX) FX = factoresExamen();
+  let w = (0.5 + 3.0 * tasas[temaDe(q)]) * (FX[q.s + '|' + q.o] || 1);          // temas con mas fallos x mas peso en el examen
   if (i === 0) return w * 1.5;
   w *= 0.3 + 3.0 * (f + 1) / (i + 2);
   w *= Math.pow(0.55, r);
