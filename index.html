@@ -421,7 +421,7 @@ async function siguiente() {
   if (S.last) S.prev = S.last;                       // la que acabas de contestar pasa a ser "la anterior"
   const r = await api(`/api/siguiente?modo=${S.modo}&recientes=${S.rec.join(',')}` + (S.temas ? '&temas=' + encodeURIComponent(S.temas.join('|')) : ''));
   if (r.vacio) { view = 'aviso'; return show(h('p', {class: 'aviso'}, '¡No tienes preguntas falladas pendientes!'), btn('Volver al menú', menu, 'acc')); }
-  S.q = r.pregunta; S.nueva = st(S.q)[0] === 0; S.pend = r.pendientes; S.resuelta = false; S.rec = [...S.rec, S.q.id].slice(-15);
+  S.q = r.pregunta; { const [i0, f0] = st(S.q); S.estado = f0 > 0 ? (f0 === 1 ? 'FALLADA 1 VEZ' : `FALLADA ${f0} VECES`) : (i0 === 0 ? 'NUEVA' : 'VISTA'); } S.pend = r.pendientes; S.resuelta = false; S.rec = [...S.rec, S.q.id].slice(-15);
   pintarPregunta();
 }
 const sesTxt = () => `Sesión: ${S.ac}/${S.hechas}` + (S.hechas ? ` · ${Math.round(100 * S.ac / S.hechas)}%` : '') +
@@ -447,7 +447,7 @@ function pintarPregunta() {
   S.res = h('div', {class: 'res'});
   S.sig = btn('Siguiente  (Enter)', siguiente, 'acc'); S.sig.style.display = 'none';
   show(h('div', {class: 'fila'}, btn('← Menú', menu), S.lbl), cajaAnterior(),
-    h('div', {class: 'muted'}, `Sección ${q.seccion} · Objetivo ${q.objetivo} · COD ${q.codigo} · ${S.nueva ? 'NUEVA' : 'VISTA'}`),
+    h('div', {class: 'muted'}, `Sección ${q.seccion} · Objetivo ${q.objetivo} · COD ${q.codigo} · ${S.estado}`),
     h('div', {class: 'card'}, q.pregunta), S.opts, S.res, S.sig);
 }
 async function responder(i) {
