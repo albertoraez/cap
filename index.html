@@ -199,8 +199,12 @@ function estadisticas() {
     const x = d[temaDe(q)] || (d[temaDe(q)] = {total: 0, vistas: 0, intentos: 0, fallos: 0, pend: 0}), [i, f, r] = st(q);
     x.total++; if (i > 0) x.vistas++; x.intentos += i; x.fallos += f; if (f > 0 && r < RACHA_DOM) x.pend++;
   }
-  const temas = Object.keys(d).sort((a, b) => tasas[b] - tasas[a]).map(t => { const x = d[t];
-    return [t, `${x.vistas}/${x.total}`, x.intentos, x.intentos ? Math.round(100 * (x.intentos - x.fallos) / x.intentos) + '%' : '-', x.pend, '█'.repeat(Math.round(tasas[t] * 10))]; });
+  if (!FX) FX = factoresExamen();
+  const fxT = {}; for (const q of Q) fxT[temaDe(q)] = FX[q.s + '|' + q.o] || 1;
+  const prio = {}; for (const t in d) prio[t] = (0.5 + 3 * tasas[t]) * fxT[t];
+  const pmax = Math.max(...Object.values(prio));
+  const temas = Object.keys(d).sort((a, b) => prio[b] - prio[a]).map(t => { const x = d[t];
+    return [t, `${x.vistas}/${x.total}`, x.intentos, x.intentos ? Math.round(100 * (x.intentos - x.fallos) / x.intentos) + '%' : '-', x.pend, '█'.repeat(Math.round(prio[t] / pmax * 10))]; });
   const intentos = Object.values(d).reduce((a, x) => a + x.intentos, 0), fallos = Object.values(d).reduce((a, x) => a + x.fallos, 0);
   const tot = TOTAL[1] + TOTAL[3];
   const fm = x => String(+x.toFixed(2));
