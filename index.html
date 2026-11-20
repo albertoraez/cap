@@ -113,6 +113,9 @@ const fmt = n => n.toFixed(1).replace('.', ',');
 const fecha = ms => new Date(ms).toLocaleString('es-ES', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'});
 let EXS = [];                                       // historial de examenes terminados
 const estadoQ = q => { const [i, , , , a] = st(q); return i === 0 ? ['— Sin contestar', 'mut'] : a > 0 ? [`✔ Acertada en el intento ${a}`, 'ok'] : ['✘ Sin acertar aún', 'ko']; };
+const barajar = q => { const p = [0, 1, 2, 3]; if (!ordenFijo(q.op)) mezclar(p);
+  return {...pub(q), opciones: p.map(i => q.op[i]), perm: p.map(i => 'ABCD'[i]).join('')}; };
+const aOriginal = (perm, l) => (perm && l) ? perm['ABCD'.indexOf(l)] : l;
 const pub = q => ({id: q.id, seccion: q.s, objetivo: q.o, codigo: q.c, tema: temaDe(q), pregunta: q.q, opciones: q.op});
 function cargarLocal() {
   try { P = JSON.parse(ls.get('cap_prog') || '{}'); } catch (e) { P = {}; }
@@ -160,6 +163,9 @@ function elegir(pool, rec) {
   for (let k = 0; k < cand.length; k++) { x -= w[k]; if (x <= 0) return cand[k]; }
   return cand[cand.length - 1];
 }
+const LET_RE = /(^|[^\wÀ-ÿ])[A-D]\s*(?:y|e|o|,|\/|\)|-)\s*[A-D](?![\wÀ-ÿ])|(?:respuestas?|opci[oó]n(?:es)?|letras?|apartados?|incisos?|afirmaci[oó]n(?:es)?)\s+(?:la\s+|las\s+)?[A-D](?![\wÀ-ÿ])|^[A-D]\s*[\).]|^[A-D]$/;
+const POS_RE = /anteriores|ambas|ambos|todas las (?:respuestas|opciones|afirmaciones)|ninguna (?:respuesta|de las|opci[oó]n)|todas (?:son|ellas)|las (?:dos|tres) (?:primeras|[uú]ltimas|son|anteriores)|ninguno de (?:los|ellos)/i;
+const ordenFijo = ops => ops.some(x => LET_RE.test(x.trim()) || POS_RE.test(x));
 const mezclar = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 function media(k, prov) {                          // media de preguntas del tema (de una provincia o de todas)
   const sec = +k.split('|')[0], ex = EXAMENES.filter(e => e[1].includes(sec) && (!prov || e[0] === prov));
@@ -246,15 +252,16 @@ const api = async (p, body) => {
     const ts = q.get('temas') ? new Set(q.get('temas').split('|')) : null;
     const pool = (falladas ? pend : Q).filter(x => !ts || ts.has(temaDe(x)));
     if (!pool.length) return {vacio: true};
-    return {pregunta: pub(elegir(pool, rec)), pendientes: pend.length};
+    return {pregunta: barajar(elegir(pool, rec)), pendientes: pend.length};
   }
   if (u.pathname === '/api/stats') return estadisticas();
-  if (u.pathname === '/api/examen/nuevo') return {minutos: EXAMEN_MIN, preguntas: generarExamen().map(pub)};
+  if (u.pathname === '/api/examen/nuevo') return {minutos: EXAMEN_MIN, preguntas: generarExamen().map(barajar)};
   if (u.pathname === '/api/responder') {
-    const qq = QID.get(+body.id), ok = body.letra === qq.ok; registrar(qq, ok); return {ok, correcta: qq.ok};
+    const qq = QID.get(+body.id), ok = aOriginal(body.perm, body.letra) === qq.ok; registrar(qq, ok);
+    return {ok, correcta: body.perm ? 'ABCD'[body.perm.indexOf(qq.ok)] : qq.ok};
   }
   if (u.pathname === '/api/examen/terminar') {
-    const det = body.ids.map(id => [+id, 'ABCD'.includes(body.respuestas[id] || '-') ? body.respuestas[id] : '']);
+    const det = body.ids.map(id => [+id, 'ABCD'.includes(body.respuestas[id] || '-') ? aOriginal((body.perms || {})[id], body.respuestas[id]) : '']);
     for (const [id, l] of det) if (l) { const qq = QID.get(id); registrar(qq, l === qq.ok); }
     const ex = {id: Date.now(), det};
     Object.assign(ex, contar(det));
@@ -437,7 +444,7 @@ async function responder(i) {
   if (S.resuelta) return;
   S.resuelta = true;
   const letra = 'ABCD'[i];
-  const r = await api('/api/responder', {id: S.q.id, letra});
+  const r = await api('/api/responder', {id: S.q.id, letra, perm: S.q.perm});
   S.hechas++; if (r.ok) S.ac++;
   S.last = {q: S.q, letra, correcta: r.correcta, ok: r.ok};
   const c = 'ABCD'.indexOf(r.correcta);
@@ -578,7 +585,7 @@ async function examenTerminar(forzado) {
   const blancos = E.preguntas.length - Object.keys(E.resp).length;
   if (!forzado && !confirm(blancos ? `Te quedan ${blancos} preguntas sin contestar (puntúan 0).\n\n¿Terminar el examen?` : '¿Terminar el examen?')) return;
   view = 'enviando'; clearInterval(timer);
-  R = await api('/api/examen/terminar', {ids: E.preguntas.map(p => p.id), respuestas: E.resp});
+  R = await api('/api/examen/terminar', {ids: E.preguntas.map(p => p.id), respuestas: E.resp, perms: Object.fromEntries(E.preguntas.map(p => [p.id, p.perm]))});
   ls.del(EXKEY); E = null; sincronizar(); resultado();      // sube el examen a la nube
 }
 function examenAbrir(id) {
