@@ -153,7 +153,7 @@ function factoresExamen() {
 }
 function peso(q, tasas, ahora, mas) {
   const [i, f, r, u] = st(q);
-  if (mas && f > 0) return Math.pow(f, 4);        // "Más falladas": las de más fallos salen muchísimo más
+  if (mas && f > 0) return Math.pow(f, 5);        // "Más falladas": las de más fallos salen muchísimo más
   if (!FX) FX = factoresExamen();
   let w = (0.5 + 3.0 * tasas[temaDe(q)]) * (FX[q.s + '|' + q.o] || 1);          // temas con mas fallos x mas peso en el examen
   if (i === 0) return w * 1.5;
@@ -260,7 +260,14 @@ const api = async (p, body) => {
     const ts = q.get('temas') ? new Set(q.get('temas').split('|')) : null;
     const pool = (falladas ? pend : Q).filter(x => !ts || coincide(x, ts));
     if (!pool.length) return {vacio: true};
-    return {pregunta: barajar(elegir(pool, rec, !!(ts && ts.has('G:Mas')))), pendientes: pend.length};
+    const mas = !!(ts && ts.has('G:Mas'));
+    let reinicio = false, base = pool;
+    if (mas) {                                   // en la sesion, primero las que aun no han salido
+      const vis = new Set((q.get('vistas') || '').split(',').filter(x => x).map(Number));
+      base = pool.filter(x => !vis.has(x.id));
+      if (!base.length) { base = pool; reinicio = true; }
+    }
+    return {pregunta: barajar(elegir(base, rec, mas)), pendientes: pend.length, reinicio};
   }
   if (u.pathname === '/api/stats') return estadisticas();
   if (u.pathname === '/api/examen/nuevo') return {minutos: EXAMEN_MIN, preguntas: generarExamen().map(barajar)};
@@ -416,12 +423,13 @@ function temasElegir() {
 }
 // ---------- practica
 let S = {};
-function sesion(modo, temas) { S = {modo, temas: temas || null, rec: [], hechas: 0, ac: 0, pend: 0, q: null, resuelta: false, last: null, prev: null, prevAbierto: false}; siguiente(); }
+function sesion(modo, temas) { S = {modo, temas: temas || null, rec: [], vistas: [], hechas: 0, ac: 0, pend: 0, q: null, resuelta: false, last: null, prev: null, prevAbierto: false}; siguiente(); }
 async function siguiente() {
   if (S.last) S.prev = S.last;                       // la que acabas de contestar pasa a ser "la anterior"
-  const r = await api(`/api/siguiente?modo=${S.modo}&recientes=${S.rec.join(',')}` + (S.temas ? '&temas=' + encodeURIComponent(S.temas.join('|')) : ''));
+  const r = await api(`/api/siguiente?modo=${S.modo}&recientes=${S.rec.join(',')}&vistas=${S.vistas.join(',')}` + (S.temas ? '&temas=' + encodeURIComponent(S.temas.join('|')) : ''));
   if (r.vacio) { view = 'aviso'; return show(h('p', {class: 'aviso'}, '¡No tienes preguntas falladas pendientes!'), btn('Volver al menú', menu, 'acc')); }
-  S.q = r.pregunta; { const [i0, f0] = st(S.q); S.estado = f0 > 0 ? (f0 === 1 ? 'FALLADA 1 VEZ' : `FALLADA ${f0} VECES`) : (i0 === 0 ? 'NUEVA' : 'VISTA'); } S.pend = r.pendientes; S.resuelta = false; S.rec = [...S.rec, S.q.id].slice(-15);
+  if (r.reinicio) S.vistas = [];                       // 'Más falladas': ya salieron todas -> nueva vuelta
+  S.q = r.pregunta; S.vistas = [...S.vistas, S.q.id]; { const [i0, f0] = st(S.q); S.estado = f0 > 0 ? (f0 === 1 ? 'FALLADA 1 VEZ' : `FALLADA ${f0} VECES`) : (i0 === 0 ? 'NUEVA' : 'VISTA'); } S.pend = r.pendientes; S.resuelta = false; S.rec = [...S.rec, S.q.id].slice(-15);
   pintarPregunta();
 }
 const sesTxt = () => `Sesión: ${S.ac}/${S.hechas}` + (S.hechas ? ` · ${Math.round(100 * S.ac / S.hechas)}%` : '') +
