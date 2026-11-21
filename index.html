@@ -360,9 +360,39 @@ async function menu() {
     btn('3   Estadísticas', stats, 'big'),
     btn('4   Modo examen (100 preguntas)', examenNuevo, 'big'),
     btn('5   Contestar por temas', temasElegir, 'big'),
+    btn('6   Buscar preguntas', buscar, 'big'),
     ex ? btn('↻ Continuar examen en curso', examenPintar, 'big acc') : null,
     h('div', {class: 'nube'}, h('div', {id: 'estadoNube', class: 'muted'}), btn('☁ Ajustes de la nube', ajustes)));
   pintaEstado();
+}
+const normalizar = t => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const EST_TXT = q => { const [i, f] = st(q); return f > 0 ? (f === 1 ? 'FALLADA 1 VEZ' : `FALLADA ${f} VECES`) : (i === 0 ? 'NUEVA' : 'VISTA'); };
+function buscar(texto = '') {
+  view = 'buscar';
+  const entrada = h('input', {type: 'search', placeholder: 'Palabras del enunciado…', value: texto, autocomplete: 'off',
+    style: 'width:100%;padding:12px;font-size:1rem;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);box-sizing:border-box'});
+  const info = h('p', {class: 'resumen'}), lista = h('div');
+  const NORM = Q.map(q => normalizar(q.q));
+  const L = 'ABCD';
+  const pinta = () => {
+    const pal = normalizar(entrada.value).split(/\s+/).filter(x => x);
+    lista.replaceChildren();
+    if (!pal.length) { info.textContent = ''; return; }
+    const res = []; Q.forEach((q, i) => { if (pal.every(p => NORM[i].includes(p))) res.push(q); });
+    info.textContent = `${res.length} preguntas` + (res.length > 100 ? ' (se muestran las 100 primeras)' : '');
+    for (const q of res.slice(0, 100)) {
+      const [txt, cl] = estadoQ(q), [i, f] = st(q);
+      const det = h('div', {style: 'display:none'}, q.op.map((o, k) => h('div', {class: 'o ' + (L[k] === q.ok ? 'ok' : 'mut')}, (L[k] === q.ok ? '✔ ' : '   ') + `${L[k]}) ${o}`)));
+      lista.append(h('div', {class: 'pq', onclick: () => { det.style.display = det.style.display === 'none' ? '' : 'none'; }},
+        h('div', {class: 'e ' + cl}, `COD ${q.c} · Tema ${temaDe(q)} · ${EST_TXT(q)}` + (i ? `  ·  ${i} ${i === 1 ? 'intento' : 'intentos'}, ${f} ${f === 1 ? 'fallo' : 'fallos'}` : '')),
+        h('div', {class: 't'}, q.q), det));
+    }
+  };
+  entrada.addEventListener('input', pinta);
+  show(h('div', {class: 'fila'}, btn('← Menú', menu), h('h2', {}, 'Buscar preguntas')),
+    h('p', {class: 'ayuda'}, 'Escribe una o varias palabras del enunciado (da igual tildes, mayúsculas u orden). Toca una pregunta para ver sus respuestas.'),
+    entrada, info, lista);
+  pinta(); entrada.focus();
 }
 function ajustes() {
   view = 'ajustes';
@@ -646,7 +676,7 @@ document.addEventListener('keydown', ev => {
     else if (k === 'Escape') examenAbandonar();
   } else if (view === 'menu') {
     if (k === '1') sesion('normal'); else if (k === '2') sesion('falladas');
-    else if (k === '3') stats(); else if (k === '4') examenNuevo(); else if (k === '5') temasElegir();
+    else if (k === '3') stats(); else if (k === '4') examenNuevo(); else if (k === '5') temasElegir(); else if (k === '6') buscar();
   } else if (k === 'Escape' && view !== 'enviando') {
     if (view === 'revision') resultado();
     else if (view === 'detalle' || (view === 'resultado' && R && R.hist)) stats();
