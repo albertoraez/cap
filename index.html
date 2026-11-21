@@ -367,7 +367,8 @@ async function menu() {
 }
 const normalizar = t => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const EST_TXT = q => { const [i, f] = st(q); return f > 0 ? (f === 1 ? 'FALLADA 1 VEZ' : `FALLADA ${f} VECES`) : (i === 0 ? 'NUEVA' : 'VISTA'); };
-function buscar(texto = '') {
+function buscar(texto) {
+  if (typeof texto !== 'string') texto = '';      // el boton le pasa el evento del toque
   view = 'buscar';
   const entrada = h('input', {type: 'search', placeholder: 'Palabras del enunciado…', value: texto, autocomplete: 'off',
     style: 'width:100%;padding:12px;font-size:1rem;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);box-sizing:border-box'});
